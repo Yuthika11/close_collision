@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Asteroid Crater Formation - Three.js</title>
+    <style>
+        /* Base styles */
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            overflow: hidden;
+            color: #eee;
+        }
+        
+        canvas {
+            display: block;
+        }
+
+        /* Universal container style for UI elements */
+        .ui-panel {
+            position: absolute;
+            color: white;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            opacity: 0; /* For fade-in animation */
+        }
+
+        /* Fade-in animations */
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+        
+        /* Main Controls Panel */
+        .controls {
+            top: 20px;
+            left: 20px;
+            animation: fadeIn 1.5s ease-out 0.5s forwards;
+        }
+
+        .controls h3 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-shadow: 0 0 8px rgba(0, 191, 255, 0.5);
+        }
+        
+        /* Info Panel */
+        .info {
+            top: 20px;
+            right: 20px;
+            font-size: 13px;
+            max-width: 250px;
+            animation: fadeIn 1.5s ease-out 0.8s forwards;
+        }
+        
+        /* Stats Panel */
+        .stats {
+            bottom: 20px;
+            left: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            animation: fadeIn 1.5s ease-out 1.1s forwards;
+        }
+
+        /* Button Styling */
+        .controls button {
+            display: block;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 24px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .controls button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* Primary action button */
+        .controls button:first-of-type {
+            background: #00bfff;
+            color: #000;
+            border-color: #00bfff;
+        }
+        .controls button:first-of-type:hover {
+            background-color: #0099cc;
+            box-shadow: 0 4px 10px rgba(0, 191, 255, 0.4);
+        }
+        
+        .controls button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Slider Styling */
+        .slider-container {
+            margin: 15px 0;
+        }
+        
+        .slider-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+            outline: none;
+            transition: opacity .2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #00bfff;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(0, 191, 255, 0.7);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #00bfff;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        /* Color Input Styling */
+        input[type="color"] {
+            width: 100%;
+            height: 35px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2px;
+            cursor: pointer;
+            border-radius: 8px;
+            background-color: transparent;
+        }
+
+        input[type="color"]:disabled {
+            cursor: not-allowed;
+            opacity: 0.4;
+        }
+        
+        /* Loading Text */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading Three.js...</div>
+    
+    <div class="ui-panel controls" id="controls" style="display: none;">
+        <h3>🌌 Impact Simulator</h3>
+        <button onclick="startImpact()">🚀 Launch Asteroid</button>
+        <button onclick="resetSimulation()">🔄 Reset Scene</button>
+        <button onclick="toggleWireframe()">📐 Toggle Wireframe</button>
+        <button onclick="changeView()">📷 Change Camera</button>
+        <button onclick="toggleTerrainType()">🌊 Toggle Water/Land</button>
+        
+        <div class="slider-container">
+            <label>Asteroid Size: <span id="sizeValue">15</span>m</label>
+            <input type="range" id="asteroidSize" min="5" max="30" value="15">
+        </div>
+        
+        <div class="slider-container">
+            <label>Impact Speed: <span id="speedValue">50</span> m/s</label>
+            <input type="range" id="impactSpeed" min="20" max="120" value="50">
+        </div>
+
+        <div class="slider-container">
+            <label for="terrainColor">Terrain Color</label>
+            <input type="color" id="terrainColor" value="#ffffff">
+        </div>
+    </div>
+    
+    <div class="ui-panel info" id="info" style="display: none;">
+        <h4>🎯 Simulation Features</h4>
+        <p style="margin: 0;">This simulation demonstrates real-time terrain deformation, particle physics, and shockwave propagation.</p>
+        <div id="status" style="margin-top: 10px; font-weight: bold;">Ready to launch</div>
+    </div>
+    
+   <div class="ui-panel stats" id="stats" style="display: none;">
+    <div>FPS: <span id="fps">60</span></div>
+    <div>Particles: <span id="particleCount">0</span></div>
+    <div>Crater Diameter: <span id="craterDiameter">0</span>m</div> 
+    <div>Crater Depth: <span id="craterDepth">0</span>m</div>
+    <div>Impact Energy: <span id="impactEnergy">0</span> MJ</div>
+    <div>Camera View: <span id="cameraView">Orbital</span></div>
+</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+
+    <script>
+        // Global variables
+        let scene, camera, renderer, clock, textureLoader;
+        let terrain, asteroid;
+        let landMaterial, waterMaterial;
+        let isSimulating = false;
+        let currentCameraView = 0;
+        let currentTerrainType = 'land'; // 'land' or 'water'
+
+        let cameraViewNames = ['Orbital', 'Side View', 'Close-up', 'Top Down'];
+        let cameraPositions = [
+            { pos: { x: 0, y: 60, z: 120 }, target: { x: 0, y: 0, z: 0 } },
+            { pos: { x: -100, y: 30, z: 60 }, target: { x: 0, y: 0, z: 0 } },
+            { pos: { x: 30, y: 25, z: 50 }, target: { x: 0, y: 0, z: 0 } },
+            { pos: { x: 0, y: 150, z: 0 }, target: { x: 0, y: 0, z: 0 } }
+        ];
+        
+        // Physics simulation variables
+        let asteroidPhysics = null;
+        let explosionParticles = [];
+        let craterRadius = 0;
+        let impactEnergy = 0;
+        let craterDiameter = 0; 
+        let craterDepth = 0; 
+        
+        // Performance tracking
+        let frameCount = 0;
+        let lastTime = 0;
+        let fps = 60;
+        
+        // Simulation parameters
+        let simulationParams = {
+            asteroidSize: 15,
+            impactSpeed: 50,
+            wireframe: false,
+            gravity: 9.8,
+            particleCount: 200,
+            craterDepthFactor: 0.4,
+            shockwaveSpeed: 12,
+            atmosphericDrag: 0.99
+        };
+
+        // Simple physics class for asteroid
+        class AsteroidPhysics {
+            constructor(position, velocity, mass, radius) {
+                this.position = new THREE.Vector3().copy(position);
+                this.velocity = new THREE.Vector3().copy(velocity);
+                this.acceleration = new THREE.Vector3(0, -simulationParams.gravity, 0);
+                this.mass = mass;
+                this.radius = radius;
+                this.hasImpacted = false;
+                this.rotationVelocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.1
+                );
+            }
+            
+            update(deltaTime) {
+                if (this.hasImpacted) return;
+                
+                this.velocity.multiplyScalar(simulationParams.atmosphericDrag);
+                this.velocity.add(this.acceleration.clone().multiplyScalar(deltaTime));
+                this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
+                
+                if (this.position.y <= this.radius) {
+                    this.impact();
+                }
+            }
+            
+            impact() {
+                this.hasImpacted = true;
+                const speed = this.velocity.length();
+                impactEnergy = 0.5 * this.mass * speed * speed / 1000000; // to MJ
+
+                const sizeComponent = this.radius * 1.5;
+                const speedComponent = (speed * speed) / 150;
+                craterRadius = Math.min(sizeComponent + speedComponent, 80);
+                craterDiameter = craterRadius * 2;
+                craterDepth = craterRadius * simulationParams.craterDepthFactor * 0.3;
+
+                createExplosion(this.position, craterRadius, speed, currentTerrainType);
+
+                // Deform terrain only if it's land
+                if (currentTerrainType === 'land') {
+                    setTimeout(() => deformTerrain(this.position, craterRadius, speed), 50);
+                } else {
+                    // For water, we don't calculate depth
+                    craterDepth = 0;
+                }
+
+                document.getElementById('status').textContent = '💥 IMPACT DETECTED!';
+                document.getElementById('impactEnergy').textContent = impactEnergy.toFixed(2);
+                document.getElementById('craterDiameter').textContent = craterDiameter.toFixed(1);
+                document.getElementById('craterDepth').textContent = (currentTerrainType === 'land' ? craterDepth.toFixed(1) : 'N/A');
+
+                cameraShake();
+            }
+        }
+
+        // Initialize the simulation
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000008);
+            scene.fog = new THREE.Fog(0x000008, 50, 300);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            setCameraPosition(0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+            
+            clock = new THREE.Clock();
+            textureLoader = new THREE.TextureLoader(); // Initialize texture loader here
+            
+            // Create materials once on load
+            landMaterial = createLandMaterial();
+            waterMaterial = createWaterMaterial();
+            
+            createLights();
+            createTerrain();
+            createStarField();
+            createAtmosphere();
+            
+            setupEventListeners();
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('controls').style.display = 'block';
+            document.getElementById('info').style.display = 'block';
+            document.getElementById('stats').style.display = 'block';
+            
+            animate();
+        }
+        
+        function createLights() {
+            scene.add(new THREE.AmbientLight(0x404040, 0.3));
+            
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            sunLight.position.set(100, 100, 50);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5; sunLight.shadow.camera.far = 500;
+            sunLight.shadow.camera.left = -150; sunLight.shadow.camera.right = 150;
+            sunLight.shadow.camera.top = 150; sunLight.shadow.camera.bottom = -150;
+            scene.add(sunLight);
+            
+            window.explosionLight = new THREE.PointLight(0xff4500, 0, 200);
+            window.explosionLight.position.set(0, 20, 0);
+            scene.add(window.explosionLight);
+            
+            const rimLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+            rimLight.position.set(-50, 30, -50);
+            scene.add(rimLight);
+        }
+        
+        function createTerrain() {
+            const terrainSegments = 64;
+            
+            const distance = cameraPositions[0].pos.z;
+            const vFov = (camera.fov * Math.PI) / 180;
+            const terrainHeight = 2 * Math.tan(vFov / 2) * distance;
+            const terrainWidth = terrainHeight * camera.aspect;
+            
+            const terrainGeometry = new THREE.PlaneGeometry(terrainWidth, terrainHeight, terrainSegments, terrainSegments);
+            const vertices = terrainGeometry.attributes.position.array;
+            const heightMap = generateHeightMap(terrainSegments + 1);
+            
+            for (let i = 0; i < vertices.length; i += 3) {
+                const index = Math.floor(i / 3);
+                vertices[i + 2] = heightMap[index] * 4;
+            }
+            terrainGeometry.attributes.position.needsUpdate = true;
+            terrainGeometry.computeVertexNormals();
+            
+            // Apply the appropriate, pre-created material
+            terrain = new THREE.Mesh(terrainGeometry, currentTerrainType === 'land' ? landMaterial : waterMaterial);
+            terrain.rotation.x = -Math.PI / 2;
+            terrain.receiveShadow = true;
+            scene.add(terrain);
+            
+            window.terrain = terrain;
+            window.terrainGeometry = terrainGeometry;
+            window.terrainSegments = terrainSegments;
+            window.terrainWidth = terrainWidth;
+            window.terrainHeight = terrainHeight;
+            window.heightMap = heightMap;
+        }
+        
+        function generateHeightMap(resolution) {
+            const heightMap = [];
+            const scale = 0.1;
+            for (let i = 0; i < resolution; i++) {
+                for (let j = 0; j < resolution; j++) {
+                    const x = (i - resolution / 2) * scale;
+                    const z = (j - resolution / 2) * scale;
+                    let height = 0;
+                    height += Math.sin(x * 2) * Math.cos(z * 2) * 0.5;
+                    height += Math.sin(x * 4) * Math.cos(z * 4) * 0.25;
+                    height += Math.sin(x * 8) * Math.cos(z * 8) * 0.125;
+                    height += (Math.random() - 0.5) * 0.5;
+                    heightMap.push(height);
+                }
+            }
+            return heightMap;
+        }
+        
+        function createLandMaterial() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+            gradient.addColorStop(0, '#8B4513'); gradient.addColorStop(0.4, '#A0522D');
+            gradient.addColorStop(0.7, '#CD853F'); gradient.addColorStop(1, '#DEB887');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            for (let i = 0; i < 2000; i++) {
+                const x = Math.random() * 512; const y = Math.random() * 512;
+                const size = Math.random() * 3 + 1; const opacity = Math.random() * 0.3 + 0.1;
+                ctx.fillStyle = `rgba(${100 + Math.random() * 50}, ${30 + Math.random() * 30}, 0, ${opacity})`;
+                ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill();
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 4);
+            return new THREE.MeshLambertMaterial({ map: texture, wireframe: simulationParams.wireframe });
+        }
+
+        function createWaterMaterial() {
+            const waterNormalMap = textureLoader.load('https://threejs.org/examples/textures/waternormals.jpg', function (texture) {
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            });
+            return new THREE.MeshPhongMaterial({
+                color: new THREE.Color(0x0055aa),
+                transparent: true, opacity: 0.85, shininess: 90,
+                reflectivity: 0.8, normalMap: waterNormalMap,
+                normalScale: new THREE.Vector2(0.5, 0.5)
+            });
+        }
+        
+        function createStarField() {
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsCount = 3000;
+            const positions = new Float32Array(starsCount * 3);
+            const colors = new Float32Array(starsCount * 3);
+            for (let i = 0; i < starsCount; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 1000;
+                positions[i * 3 + 1] = Math.random() * 400 + 50;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 1000;
+                const color = new THREE.Color();
+                color.setHSL(0.6 + Math.random() * 0.1, 0.2 + Math.random() * 0.3, 0.8 + Math.random() * 0.2);
+                colors[i * 3] = color.r; colors[i * 3 + 1] = color.g; colors[i * 3 + 2] = color.b;
+            }
+            starsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            starsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const stars = new THREE.Points(starsGeometry, new THREE.PointsMaterial({ size: 1.2, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.8 }));
+            scene.add(stars);
+        }
+        
+        function createAtmosphere() {
+            const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 32), new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.03, side: THREE.BackSide }));
+            scene.add(atmosphere);
+        }
+        
+        function createAsteroid(size, position, velocity) {
+            const asteroidGeometry = new THREE.IcosahedronGeometry(size, 3);
+            const vertices = asteroidGeometry.attributes.position.array;
+            const normals = asteroidGeometry.attributes.normal.array;
+            for (let i = 0; i < vertices.length; i += 3) {
+                const normal = new THREE.Vector3(normals[i], normals[i + 1], normals[i + 2]);
+                const noise = (Math.random() - 0.5) * size * 0.4;
+                const deformation = normal.multiplyScalar(noise);
+                vertices[i] += deformation.x; vertices[i + 1] += deformation.y; vertices[i + 2] += deformation.z;
+            }
+            asteroidGeometry.attributes.position.needsUpdate = true;
+            asteroidGeometry.computeVertexNormals();
+            
+            // Load the asteroid texture using the CORRECT FILENAME
+            const asteroidTexture = textureLoader.load('meteor_texture.png');
+            
+            const asteroidMaterial = new THREE.MeshPhongMaterial({
+                map: asteroidTexture, // Apply the loaded texture here
+                shininess: 5,
+                emissive: 0x111111,
+                specular: 0x333333
+            });
+            
+            asteroid = new THREE.Mesh(asteroidGeometry, asteroidMaterial);
+            asteroid.position.copy(position);
+            asteroid.castShadow = true;
+            scene.add(asteroid);
+            const mass = size * size * 0.1;
+            asteroidPhysics = new AsteroidPhysics(position, velocity, mass, size);
+            createAsteroidTrail();
+        }
+        
+        function createAsteroidTrail() {
+            const trail = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xff6600, size: 3, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending }));
+            scene.add(trail);
+            window.asteroidTrail = trail;
+            window.trailPositions = [];
+        }
+        
+        function updateAsteroidTrail() {
+            if (!asteroid || !window.trailPositions) return;
+            window.trailPositions.push({ pos: asteroid.position.clone(), life: 1.0 });
+            for (let i = window.trailPositions.length - 1; i >= 0; i--) {
+                window.trailPositions[i].life -= 0.02;
+                if (window.trailPositions[i].life <= 0) {
+                    window.trailPositions.splice(i, 1);
+                }
+            }
+            if (window.trailPositions.length > 0) {
+                const positions = new Float32Array(window.trailPositions.length * 3);
+                const colors = new Float32Array(window.trailPositions.length * 3);
+                for (let i = 0; i < window.trailPositions.length; i++) {
+                    const point = window.trailPositions[i];
+                    positions[i * 3] = point.pos.x; positions[i * 3 + 1] = point.pos.y; positions[i * 3 + 2] = point.pos.z;
+                    const intensity = point.life;
+                    colors[i * 3] = 1 * intensity; colors[i * 3 + 1] = 0.4 * intensity; colors[i * 3 + 2] = 0 * intensity;
+                }
+                window.asteroidTrail.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                window.asteroidTrail.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                window.asteroidTrail.material.vertexColors = true;
+            }
+        }
+        
+        function createExplosion(position, radius, speed, terrainType) {
+            const particleCount = Math.min(simulationParams.particleCount, Math.floor(radius * 5));
+            for (let i = 0; i < particleCount; i++) {
+                const particle = createExplosionParticle(position, radius, speed, terrainType);
+                explosionParticles.push(particle);
+                scene.add(particle.mesh);
+            }
+            createShockwave(position, radius, terrainType);
+            setTimeout(() => createShockwave(position, radius * 1.5, terrainType), 100);
+            setTimeout(() => createShockwave(position, radius * 2, terrainType), 200);
+            window.explosionLight.intensity = 3;
+            window.explosionLight.position.copy(position);
+            window.explosionLight.position.y += 10;
+            let lightIntensity = 3;
+            const fadeLight = () => {
+                lightIntensity *= 0.95;
+                window.explosionLight.intensity = lightIntensity;
+                if (lightIntensity > 0.01) { setTimeout(fadeLight, 50); } else { window.explosionLight.intensity = 0; isSimulating = false; }
+            };
+            fadeLight();
+        }
+        
+        function createExplosionParticle(center, radius, speed, terrainType) {
+            const direction = new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 0.7 + 0.3, (Math.random() - 0.5) * 2).normalize();
+            const particleSpeed = (Math.random() * speed * 0.5 + speed * 0.2);
+            const size = Math.random() * 2 + 0.5;
+            const isWater = terrainType === 'water';
+            const color = isWater ? new THREE.Color().setHSL(0.6, 0.8, 0.7 + Math.random() * 0.2) : new THREE.Color().setHSL(0.08 + Math.random() * 0.1, 0.8 + Math.random() * 0.2, 0.4 + Math.random() * 0.4);
+            const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 6, 6), material);
+            mesh.position.copy(center);
+            mesh.position.add(new THREE.Vector3((Math.random() - 0.5) * radius * 0.5, (Math.random() - 0.5) * radius * 0.3, (Math.random() - 0.5) * radius * 0.5));
+            return { mesh: mesh, velocity: direction.multiplyScalar(particleSpeed), life: 1.0, decay: Math.random() * 0.01 + 0.005, size: size, angularVelocity: new THREE.Vector3((Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.2) };
+        }
+        
+        function createShockwave(center, radius, terrainType) {
+            const isWater = terrainType === 'water';
+            const shockwaveMaterial = new THREE.MeshBasicMaterial({ color: isWater ? 0xffffff : 0xffaa00, transparent: true, opacity: 0.7, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+            const shockwave = new THREE.Mesh(new THREE.RingGeometry(0, 1, 64, 1), shockwaveMaterial);
+            shockwave.position.copy(center); shockwave.position.y = 1; shockwave.rotation.x = -Math.PI / 2;
+            scene.add(shockwave);
+            let currentRadius = 0; let opacity = 0.7; const maxRadius = radius * 4;
+            const expandShockwave = () => {
+                if (currentRadius < maxRadius) {
+                    currentRadius += simulationParams.shockwaveSpeed; opacity *= 0.98;
+                    shockwave.scale.set(currentRadius, currentRadius, 1); shockwave.material.opacity = Math.max(0, opacity);
+                    requestAnimationFrame(expandShockwave);
+                } else { scene.remove(shockwave); }
+            };
+            expandShockwave();
+        }
+        
+        function deformTerrain(impactPoint, radius, speed) {
+            if (!window.terrainGeometry) return;
+            const vertices = window.terrainGeometry.attributes.position.array; const segments = window.terrainSegments + 1;
+            const terrainWidth = window.terrainWidth; const terrainHeight = window.terrainHeight;
+            const gridX = Math.floor(((impactPoint.x + terrainWidth / 2) / terrainWidth) * (segments - 1));
+            const gridZ = Math.floor(((impactPoint.z + terrainHeight / 2) / terrainHeight) * (segments - 1));
+            const gridCellWidth = terrainWidth / (segments - 1); const gridCellHeight = terrainHeight / (segments - 1);
+            const craterGridRadiusX = Math.ceil(radius / gridCellWidth); const craterGridRadiusZ = Math.ceil(radius / gridCellHeight);
+            const dynamicDepthFactor = simulationParams.craterDepthFactor + (speed / 400);
+            for (let i = -craterGridRadiusX; i <= craterGridRadiusX; i++) {
+                for (let j = -craterGridRadiusZ; j <= craterGridRadiusZ; j++) {
+                    const x = gridX + i; const z = gridZ + j;
+                    if (x >= 0 && x < segments && z >= 0 && z < segments) {
+                        const normalizedDistSq = (i / craterGridRadiusX) ** 2 + (j / craterGridRadiusZ) ** 2;
+                        if (normalizedDistSq <= 1.0) {
+                            const vertexIndex = (x * segments + z) * 3 + 2;
+                            if (vertexIndex < vertices.length) {
+                                const normalizedDist = Math.sqrt(normalizedDistSq);
+                                let deformationFactor;
+                                if (normalizedDist < 0.3) { deformationFactor = 1.0; } else if (normalizedDist < 0.8) { deformationFactor = Math.cos((normalizedDist - 0.3) * Math.PI / 1.0); } else { deformationFactor = -0.2 * Math.cos((normalizedDist - 0.8) * Math.PI / 0.4); }
+                                const deformation = -radius * dynamicDepthFactor * deformationFactor;
+                                vertices[vertexIndex] += deformation * 0.3;
+                            }
+                        }
+                    }
+                }
+            }
+            window.terrainGeometry.attributes.position.needsUpdate = true;
+            window.terrainGeometry.computeVertexNormals();
+        }
+        
+        function updateExplosionParticles(deltaTime) {
+            for (let i = explosionParticles.length - 1; i >= 0; i--) {
+                const p = explosionParticles[i];
+                p.velocity.y -= simulationParams.gravity * deltaTime * 2;
+                p.velocity.multiplyScalar(0.995);
+                p.mesh.position.add(p.velocity.clone().multiplyScalar(deltaTime));
+                p.mesh.rotation.x += p.angularVelocity.x * deltaTime; p.mesh.rotation.y += p.angularVelocity.y * deltaTime; p.mesh.rotation.z += p.angularVelocity.z * deltaTime;
+                if (p.mesh.position.y <= p.size) {
+                    p.velocity.y *= -0.4; p.velocity.x *= 0.7; p.velocity.z *= 0.7;
+                    p.mesh.position.y = p.size;
+                }
+                p.life -= p.decay; p.mesh.material.opacity = Math.max(0, p.life);
+                const scale = 0.3 + p.life * 0.7;
+                p.mesh.scale.set(scale, scale, scale);
+                if (p.life <= 0) { scene.remove(p.mesh); explosionParticles.splice(i, 1); }
+            }
+        }
+        
+        function cameraShake() {
+            const originalPosition = camera.position.clone();
+            let shakeIntensity = 2, shakeCount = 0; const maxShakes = 20;
+            const shake = () => {
+                if (shakeCount < maxShakes) {
+                    camera.position.set(originalPosition.x + (Math.random() - 0.5) * shakeIntensity, originalPosition.y + (Math.random() - 0.5) * shakeIntensity, originalPosition.z + (Math.random() - 0.5) * shakeIntensity);
+                    shakeIntensity *= 0.9; shakeCount++;
+                    setTimeout(shake, 50);
+                } else { setCameraPosition(currentCameraView); }
+            };
+            shake();
+        }
+        
+        function setupEventListeners() {
+            window.addEventListener('resize', onWindowResize);
+            document.getElementById('asteroidSize').addEventListener('input', (e) => { simulationParams.asteroidSize = parseInt(e.target.value); document.getElementById('sizeValue').textContent = e.target.value; });
+            document.getElementById('impactSpeed').addEventListener('input', (e) => { simulationParams.impactSpeed = parseInt(e.target.value); document.getElementById('speedValue').textContent = e.target.value; });
+            document.getElementById('terrainColor').addEventListener('input', (e) => { if (terrain && terrain.material && currentTerrainType === 'land') { terrain.material.color.set(e.target.value); } });
+        }
+        
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        
+        function setCameraPosition(index) { const pos = cameraPositions[index]; camera.position.set(pos.pos.x, pos.pos.y, pos.pos.z); camera.lookAt(pos.target.x, pos.target.y, pos.target.z); document.getElementById('cameraView').textContent = cameraViewNames[index]; }
+        
+        // Control functions
+        function startImpact() {
+            if (isSimulating) return;
+            isSimulating = true; document.getElementById('status').textContent = '🌌 Asteroid incoming...';
+            if (asteroid) { scene.remove(asteroid); if (window.asteroidTrail) scene.remove(window.asteroidTrail); }
+            explosionParticles.forEach(particle => scene.remove(particle.mesh)); explosionParticles = [];
+            const startPosition = new THREE.Vector3((Math.random() - 0.5) * 100, 80 + Math.random() * 40, (Math.random() - 0.5) * 100);
+            const targetPosition = new THREE.Vector3((Math.random() - 0.5) * 40, 0, (Math.random() - 0.5) * 40);
+            const direction = targetPosition.sub(startPosition).normalize();
+            const velocity = direction.multiplyScalar(simulationParams.impactSpeed);
+            createAsteroid(simulationParams.asteroidSize, startPosition, velocity);
+        }
+        
+        function resetSimulation() {
+            if (asteroid) { scene.remove(asteroid); asteroid = null; asteroidPhysics = null; }
+            if (window.asteroidTrail) { scene.remove(window.asteroidTrail); window.asteroidTrail = null; }
+            if (window.trailPositions) { window.trailPositions = []; }
+            explosionParticles.forEach(particle => scene.remove(particle.mesh)); explosionParticles = [];
+            scene.remove(terrain); createTerrain();
+            if (currentTerrainType === 'land') {
+                const currentColor = document.getElementById('terrainColor').value;
+                if (terrain && terrain.material) { terrain.material.color.set(currentColor); }
+            }
+            craterRadius = 0; impactEnergy = 0; craterDiameter = 0; craterDepth = 0; isSimulating = false;
+            document.getElementById('status').textContent = 'Ready to launch';
+            document.getElementById('particleCount').textContent = '0'; document.getElementById('impactEnergy').textContent = '0';
+            document.getElementById('craterDiameter').textContent = '0'; document.getElementById('craterDepth').textContent = '0';
+            window.explosionLight.intensity = 0;
+        }
+
+        function toggleTerrainType() {
+            currentTerrainType = (currentTerrainType === 'land') ? 'water' : 'land';
+            const colorPicker = document.getElementById('terrainColor');
+            if (terrain) {
+                if (currentTerrainType === 'land') {
+                    terrain.material = landMaterial;
+                    colorPicker.disabled = false;
+                    // Re-apply the current tint from the color picker
+                    terrain.material.color.set(colorPicker.value);
+                } else {
+                    terrain.material = waterMaterial;
+                    colorPicker.disabled = true;
+                }
+            }
+        }
+        
+        function toggleWireframe() { simulationParams.wireframe = !simulationParams.wireframe; landMaterial.wireframe = simulationParams.wireframe; waterMaterial.wireframe = simulationParams.wireframe; }
+        
+        function changeView() { currentCameraView = (currentCameraView + 1) % cameraPositions.length; setCameraPosition(currentCameraView); }
+        
+        function updateStats() {
+            frameCount++; const currentTime = performance.now();
+            if (currentTime - lastTime >= 1000) { fps = Math.round((frameCount * 1000) / (currentTime - lastTime)); frameCount = 0; lastTime = currentTime; }
+            document.getElementById('fps').textContent = fps; document.getElementById('particleCount').textContent = explosionParticles.length;
+        }
+        
+        // Main animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+            
+            if (asteroidPhysics && asteroid && !asteroidPhysics.hasImpacted) {
+                asteroidPhysics.update(deltaTime);
+                asteroid.position.copy(asteroidPhysics.position);
+                asteroid.rotation.x += asteroidPhysics.rotationVelocity.x * deltaTime; asteroid.rotation.y += asteroidPhysics.rotationVelocity.y * deltaTime; asteroid.rotation.z += asteroidPhysics.rotationVelocity.z * deltaTime;
+                updateAsteroidTrail();
+            }
+            
+            if (asteroidPhysics && asteroidPhysics.hasImpacted && asteroid) {
+                scene.remove(asteroid); asteroid = null;
+                if (window.asteroidTrail) { scene.remove(window.asteroidTrail); window.asteroidTrail = null; window.trailPositions = []; }
+            }
+
+            if (currentTerrainType === 'water' && waterMaterial.normalMap) {
+                waterMaterial.normalMap.offset.x += 0.001;
+                waterMaterial.normalMap.offset.y += 0.0005;
+            }
+            
+            updateExplosionParticles(deltaTime);
+            updateStats();
+            renderer.render(scene, camera);
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            if (typeof THREE === 'undefined') { document.getElementById('loading').textContent = 'Error: Three.js failed to load'; return; }
+            setTimeout(() => { init(); }, 100);
+        });
+    </script>
+</body>
+</html>
